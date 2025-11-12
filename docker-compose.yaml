@@ -13,6 +13,9 @@ services:
 
   grafana:
     image: grafana/grafana:latest
+    depends_on:
+      - loki
+      - prometheus
     ports:
       - "3000:3000"
     environment:
@@ -20,5 +23,27 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
 
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    command:
+      - --config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki-data:/var/lib/loki
+
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - ./promtail:/etc/promtail
+      - /var/log:/var/log
+      - ./logs:/app/logs
+    command:
+      - --config.file=/etc/promtail/config.yaml
+    depends_on:
+      - loki
+
 volumes:
   grafana-data:
+  loki-data:
+  promtail-data:
