@@ -28,6 +28,31 @@ var (
 	)
 )
 
+var (
+	userRegistrationsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "user_registrations_total",
+			Help: "Total number of user registrations.",
+		},
+		[]string{"status"}, // "success" or "failed"
+	)
+
+	userRegistrationDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "user_registration_duration_seconds",
+			Help:    "Time spent processing user registration.",
+			Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1.0, 2.0},
+		},
+	)
+
+	activeUsers = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "active_users",
+			Help: "Current number of active users.",
+		},
+	)
+)
+
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
@@ -39,7 +64,13 @@ func (rw *responseWriter) WriteHeader(code int) {
 }
 
 func init() {
-	prometheus.MustRegister(httpRequestsTotal, httpRequestDuration)
+	prometheus.MustRegister(
+		httpRequestsTotal,        // HTTP 请求总数
+		httpRequestDuration,      // HTTP 请求延迟
+		userRegistrationsTotal,   // 用户注册总数
+		userRegistrationDuration, // 用户注册延迟
+		activeUsers,              // 活跃用户数
+	)
 }
 
 // 定义中间件
