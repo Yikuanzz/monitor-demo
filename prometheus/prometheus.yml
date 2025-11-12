@@ -5,3 +5,7 @@ scrape_configs:
   - job_name: 'demo1'
     static_configs:
       - targets: ['host.docker.internal:2365']
+
+  - job_name: 'demo2'
+    static_configs:
+      - targets: ['host.docker.internal:3055']
