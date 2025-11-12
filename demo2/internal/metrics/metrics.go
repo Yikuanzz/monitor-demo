@@ -85,3 +85,16 @@ var (
 		},
 	)
 )
+
+// init 函数在包导入时自动执行，用于注册所有指标
+func init() {
+	prometheus.MustRegister(
+		// HTTP 指标
+		HTTPRequestsTotal,
+		HTTPRequestDuration,
+		// 业务指标
+		UserRegistrationsTotal,
+		UserRegistrationDuration,
+		ActiveUsers,
+	)
+}

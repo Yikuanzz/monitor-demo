@@ -1,11 +1,25 @@
-global:
-  scrape_interval: 15s    # 抓取数据的时间间隔
+# ============================================================================
+# Prometheus 配置文件
+# ============================================================================
 
+global:
+  scrape_interval: 15s       # 每 15 秒抓取一次指标数据
+  evaluation_interval: 15s   # 每 15 秒评估一次规则（Recording Rules 和 Alerting Rules）
+
+# 加载 Recording Rules 和 Alerting Rules
+rule_files:
+  - "rules/*.yml"            # 加载 rules 目录下的所有规则文件
+
+# 抓取配置：定义要监控的目标
 scrape_configs:
+  # Job 1: demo1 服务
   - job_name: 'demo1'
     static_configs:
-      - targets: ['host.docker.internal:2365']
+      - targets: ['host.docker.internal:2365']  # 监控 demo1 的 /metrics 端点
 
+  # Job 2: demo2 服务
   - job_name: 'demo2'
     static_configs:
-      - targets: ['host.docker.internal:3055']
+      - targets: ['host.docker.internal:3055']  # 监控 demo2 的 /metrics 端点
+    # 如果需要更长的超时时间，可以添加：
+    # scrape_timeout: 10s

@@ -1,0 +1,91 @@
+# ============================================================================
+# Prometheus Recording Rules（记录规则）配置文件
+# ============================================================================
+# 【什么是 Recording Rules？】
+# Recording Rules 用于预计算复杂的 PromQL 查询，并将结果保存为新的时间序列
+#
+# 【为什么需要 Recording Rules？】
+# 1. 性能优化：复杂查询预先计算，避免查询时实时计算导致的延迟
+# 2. 简化查询：复杂表达式预计算后，告警规则和图表可以直接使用简单指标
+# 3. 降低负载：避免重复执行相同的复杂查询
+# 4. 数据聚合：可以跨多个指标进行聚合计算
+#
+# 【配置结构】
+# - groups: 规则组列表
+# - name: 规则组名称
+# - interval: 评估间隔（多久计算一次，默认与 global.evaluation_interval 一致）
+# - rules: 具体规则列表
+#   - record: 新指标的名称（命名规范：level:metric:operations）
+#   - expr: PromQL 表达式
+# ============================================================================
+
+groups:
+  - name: http_rules
+    interval: 30s     # 每 30 秒计算一次 （默认用 global 的 scrape_interval）
+    rules:
+      # ==================== 1、预计算 HTTP 请求速率（每秒请求数）====================
+      # 作用：计算最近 5 分钟内每秒的平均请求数，按 method、endpoint、status 分组
+      # rate() 函数：计算时间序列在指定时间范围内的每秒平均增长率
+      # sum by：按指定标签分组求和，保留这些标签维度
+      # 使用场景：快速查询系统 QPS（每秒查询数）
+      - record: http_requests:rate5m
+        expr: | 
+          sum by (method, endpoint, status) (
+            rate(user_service_http_requests_total[5m])
+          )
+
+      # ==================== 2、预计算 HTTP 错误率（5xx + 4xx）====================
+      # 作用：计算每个端点的错误请求占总请求的比例
+      # status=~"5..|4.."：正则匹配，选择 4xx 和 5xx 状态码（客户端错误和服务器错误）
+      # endpoint!=""：排除空端点
+      # 分子：错误请求的速率
+      # 分母：所有请求的速率
+      # 结果：错误率（0-1 之间的小数，如 0.05 表示 5% 错误率）
+      # 使用场景：监控服务健康度，设置告警阈值（如错误率 > 1%）
+      - record: http_error_ratio:5m
+        expr: |
+          sum by (endpoint) (
+            rate(user_service_http_requests_total{status=~"5..|4..", endpoint!=""}[5m])
+          )
+          / 
+          sum by (endpoint) (
+            rate(user_service_http_requests_total[5m])
+          )
+
+      # ==================== 3、预计算 P99 延迟 （基于 histogram 计算）====================
+      # 【P99 概念详解】
+      # P99（99th percentile，第 99 百分位数）：表示 99% 的请求响应时间都小于等于这个值
+      # 举例：P99 = 0.5 秒，意味着 99% 的请求在 0.5 秒内完成，只有 1% 的请求超过 0.5 秒
+      # 
+      # 【为什么关注 P99 而不是平均值？】
+      # - 平均值会被极端值影响，无法反映大多数用户体验
+      # - P99 能发现长尾延迟问题，保证绝大多数用户的体验
+      # 
+      # 【histogram_quantile() 函数】
+      # - 基于 Histogram 类型的 bucket 数据计算百分位数
+      # - 0.99 表示计算 P99，可以改为 0.95(P95)、0.50(P50/中位数) 等
+      # - le 标签：Histogram 自动生成的"小于等于"标签，用于分桶统计
+      # 
+      # 【_bucket 后缀】
+      # - Histogram 指标会自动生成三个时间序列：
+      #   * _bucket：各个分桶的累计计数
+      #   * _sum：所有观测值的总和
+      #   * _count：观测值的总数
+      # 
+      # 使用场景：性能监控、SLA 保障、容量规划
+      - record: http_request_duration_seconds_p99
+        expr: |
+          histogram_quantile(0.99,
+            sum by (method, endpoint, le) (
+              rate(user_service_http_request_duration_seconds_bucket[5m])
+            )
+          )
+
+      # ==================== 4、预计算活跃用户数 ====================
+      # 作用：直接记录 Gauge 类型的指标，便于统一查询
+      # 这是一个简单的传递规则，通常用于：
+      # - 统一指标命名规范
+      # - 在告警规则中统一引用
+      # - 为后续聚合计算做准备
+      - record: user_service_active_users
+        expr: user_service_active_users
